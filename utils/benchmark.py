@@ -13,6 +13,7 @@ import sys
 import cv2
 import numpy as np
 from torch.utils.data import DataLoader
+import hashlib
 
 try:
     from DetModels import YOLOV5S
@@ -224,7 +225,7 @@ class Classify_Model(nn.Module):
         - source (str): Path to the raw data.
         """
         print("PROCESSING", source)
-        location = os.path.join(self.save_path, 'images')
+        location = os.path.join(self.save_path, path_to_tmp(source, 'images_'))
         sample_duration_s = 0.1
         ratio = 1
         generate_images(source, duration_time=sample_duration_s, location=location, ratio=ratio)
@@ -239,8 +240,11 @@ class Classify_Model(nn.Module):
             probabilities = torch.softmax(temp, dim=1)
 
             predicted_class_index = torch.argmax(probabilities, dim=1).item()
-            predicted_class_name = get_key_from_value(self.cfg['class_names'], predicted_class_index)
-            print(predicted_class_index, predicted_class_name, probabilities)
+            if probabilities[0][predicted_class_index] > 0.7 :
+                predicted_class_name = get_key_from_value(self.cfg['class_names'], predicted_class_index)
+            else :
+                predicted_class_name = "no detection"
+            print("{}, probabilities: {}", predicted_class_name, probabilities[0])
 
             _ = self.add_result(res=predicted_class_name,
                                 probability=probabilities[0][predicted_class_index].item() * 100,
@@ -397,7 +401,7 @@ class Classify_Model(nn.Module):
         row_ind, col_ind = linear_sum_assignment(-cm_raw)   # 取负→最大化对角线
         mapping_pred2gt = {int(r): int(c) for r, c in zip(row_ind, col_ind)}
         print("\n★ 最佳映射 pred → gt:", mapping_pred2gt)
-        
+
         # 若要保存下来以后用：
         import json
         json.dump(mapping_pred2gt, open('class_to_idx_pred2gt.json', 'w'))
@@ -600,6 +604,16 @@ def is_valid_file(path, total_ext):
         return True
     else:
         return False
+
+
+def path_to_tmp(original_path: str, prefix="/tmp/images_") -> str:
+    """
+    Convert any path into a unique /tmp path.
+    Uses a SHA1 hash so the result is stable across runs.
+    """
+    abs_path = os.path.abspath(original_path)
+    h = hashlib.sha1(abs_path.encode("utf-8")).hexdigest()[:12]
+    return f"{prefix}{h}"
 
 
 def get_key_from_value(d, value):
