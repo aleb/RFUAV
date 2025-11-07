@@ -223,21 +223,29 @@ class Classify_Model(nn.Module):
         Parameters:
         - source (str): Path to the raw data.
         """
-        res = []
-        images = generate_images(source)
+        print("PROCESSING", source)
+        location = os.path.join(self.save_path, 'images')
+        sample_duration_s = 0.1
+        ratio = 1
+        generate_images(source, duration_time=sample_duration_s, location=location, ratio=ratio)
         name = os.path.splitext(os.path.basename(source))[0]
 
-        for image in images:
+        res = []
+        for (i, image) in enumerate(os.listdir(location)):
+            time = i * sample_duration_s / (2 ** ratio)
+            image = Image.open(os.path.join(location, image))
             temp = self.model(self.preprocess(image))
 
             probabilities = torch.softmax(temp, dim=1)
 
             predicted_class_index = torch.argmax(probabilities, dim=1).item()
             predicted_class_name = get_key_from_value(self.cfg['class_names'], predicted_class_index)
+            print(predicted_class_index, predicted_class_name, probabilities)
 
             _ = self.add_result(res=predicted_class_name,
                                 probability=probabilities[0][predicted_class_index].item() * 100,
-                                image=image)
+                                image=image,
+                                time=time)
             res.append(_)
 
         imageio.mimsave(os.path.join(self.save_path, name + '.mp4'), res, fps=5)
@@ -245,11 +253,12 @@ class Classify_Model(nn.Module):
     def add_result(self,
                    res,
                    image,
-                   position=(40, 40),
-                   font="arial.ttf",
-                   font_size=45,
-                   text_color=(255, 0, 0),
-                   probability=0.0
+                   position=(40, 45),
+                   font="AdwaitaMono-Bold.ttf",
+                   font_size=40,
+                   text_color=(0, 0, 0),
+                   probability=0.0,
+                   time=None
                    ):
         """
         Adds the inference result to the image.
@@ -271,7 +280,8 @@ class Classify_Model(nn.Module):
             font = ImageFont.truetype(font, font_size)
         except:
             font = ImageFont.load_default()
-        draw.text(position, res + f" {probability:.2f}%", fill=text_color, font=font)
+        draw.text(position,                     f"model: {res} ({probability:.2f})", fill=text_color, font=font)
+        draw.text((position[0], position[1]*2), f"time:  {time:.2f}s", fill=text_color, font=font)
         return image
 
     @property
@@ -333,7 +343,8 @@ class Classify_Model(nn.Module):
                         root=os.path.join(data_path, snr, CM),
                         transform=transforms.Compose([
                         transforms.Resize((self.cfg['image_size'], self.cfg['image_size'])),
-                        transforms.ToTensor(),])
+                        transforms.ToTensor(),]),
+                        allow_empty=True
                     )
                     dataset = DataLoader(_dataset, batch_size=self.cfg['batch_size'], shuffle=self.cfg['shuffle'])
                     print("Starting Benchmark...")

@@ -104,22 +104,30 @@ def generate_images(datapack: str = None,
     - pack (str): Pack name.
     - fs (int): Sampling frequency, default is 100 MHz. ref: https://en.wikipedia.org/wiki/Sampling_(signal_processing)
     - stft_point (int): Number of points for STFT, default is 1024. ref: https://en.wikipedia.org/wiki/Short-time_Fourier_transform#Inverse_STFT
-    - duration_time (float): Duration time for each segment, default is 0.1 seconds.
-    - ratio (int): Controls the time interval ratio for generating images, default is 1.
+    - duration_time (float): Duration time for each image, default is 0.1 seconds.
+    - ratio (int): Controls the time interval ratio for generating images 2^(-ratio). For example 1->0.5s.
     - location (str): Location to save the images, default is 'buffer'.
 
     Returns:
     - list: List of images if `location` is 'buffer'.
     """
     slice_point = int(fs * duration_time)
+    # Load an array of float32
     data = np.fromfile(datapack, dtype=file_type)
+    # Pair the values in two, as complex numbers
     data = data[::2] + data[1::2] * 1j
-    if location == 'buffer': images = []
+    if location == 'buffer':
+        images = []
+    else:
+        if os.path.exists(location):
+            return
+        os.mkdir(location)
 
     i = 0
     while (i + 1) * slice_point <= len(data):
-
-        f, t, Zxx = STFT(data[int(i * slice_point): int((i + 1) * slice_point)],
+        start = int(i * slice_point)
+        end = int((i + 1) * slice_point)
+        f, t, Zxx = STFT(data[start:end],
                          stft_point=stft_point, fs=fs, duration_time=duration_time, onside=False)
         f = np.fft.fftshift(f)
         Zxx = np.fft.fftshift(Zxx, axes=0)
@@ -140,7 +148,8 @@ def generate_images(datapack: str = None,
             images.append(Image.open(buffer))
 
         else:
-            plt.savefig(location + (file + '/' if file else '') + (pack + '/' if pack else '') + file + ' (' + str(i) + ').jpg', dpi=300)
+            # plt.savefig(location + (file + '/' if file else '') + (pack + '/' if pack else '') + file + ' (' + str(i) + ').jpg', dpi=300)
+            plt.savefig(os.path.join(location, '{:08}.jpg'.format(i)), dpi=300)
             plt.close()
 
         i += 2 ** (-ratio)

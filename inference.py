@@ -11,7 +11,7 @@ def main():
     source = sys.argv[3]
     save_path = sys.argv[4]
     test.inference(source, save_path)
-    #test.benchmark(data_path=source)
+    #test.benchmark(source, save_path)
 
 
 if __name__ == '__main__':
