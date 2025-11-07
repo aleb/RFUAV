@@ -7,7 +7,7 @@ import glob
 from torchvision import transforms, datasets
 from PIL import Image, ImageDraw, ImageFont
 import time
-from graphic.RawDataProcessor import generate_images
+from graphic.RawDataProcessor import SAMPLES_FREQUENCY, generate_images
 import imageio
 import sys
 import cv2
@@ -224,7 +224,10 @@ class Classify_Model(nn.Module):
         Parameters:
         - source (str): Path to the raw data.
         """
-        print("PROCESSING", source)
+        # "iq" is a series of two values .. of float32
+        samples_count = os.path.getsize(source) / 2 / 4
+        duration = samples_count / SAMPLES_FREQUENCY
+        print("PROCESSING", source, "(", duration, "s)")
         location = os.path.join(self.save_path, path_to_tmp(source, 'images_'))
         sample_duration_s = 0.1
         ratio = 1

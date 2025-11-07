@@ -9,6 +9,8 @@ from PIL import Image
 from typing import Union
 from scipy.fft import fft
 
+SAMPLES_FREQUENCY = 100e6
+
 
 class RawDataProcessor:
     """transform raw data into images, video, and save the result locally
@@ -88,7 +90,7 @@ class RawDataProcessor:
 def generate_images(datapack: str = None,
                     file: str = None,
                     pack: str = None,
-                    fs: int = 100e6,
+                    fs: int = SAMPLES_FREQUENCY,
                     stft_point: int = 1024,
                     duration_time: float = 0.1,
                     ratio: int = 1,  # 控制产生图片时间间隔的倍率，默认为1生成视频的倍率
