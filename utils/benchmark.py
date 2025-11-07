@@ -97,6 +97,7 @@ class Classify_Model(nn.Module):
         self.model.to(self.device)
         self.model.eval()
         self.save_path = None
+        self.cache_path = "./cache"
 
         self.save = save
 
@@ -228,7 +229,7 @@ class Classify_Model(nn.Module):
         samples_count = os.path.getsize(source) / 2 / 4
         duration = samples_count / SAMPLES_FREQUENCY
         print("PROCESSING", source, "(", duration, "s)")
-        location = os.path.join(self.save_path, path_to_tmp(source, 'images_'))
+        location = os.path.join(self.cache_path, path_to_tmp(source, 'images_'))
         sample_duration_s = 0.1
         ratio = 1
         generate_images(source, duration_time=sample_duration_s, location=location, ratio=ratio, fs = 20e6)
