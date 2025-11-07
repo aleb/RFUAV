@@ -9,7 +9,7 @@ from PIL import Image
 from typing import Union
 from scipy.fft import fft
 
-SAMPLES_FREQUENCY = 100e6
+SAMPLES_FREQUENCY = 20e6
 
 
 class RawDataProcessor:
