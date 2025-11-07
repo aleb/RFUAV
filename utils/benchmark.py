@@ -225,7 +225,7 @@ class Classify_Model(nn.Module):
         """
         res = []
         images = generate_images(source)
-        name = os.path.splitext(os.path.basename(source))
+        name = os.path.splitext(os.path.basename(source))[0]
 
         for image in images:
             temp = self.model(self.preprocess(image))
@@ -267,9 +267,11 @@ class Classify_Model(nn.Module):
         - image (PIL.Image): Image with added result.
         """
         draw = ImageDraw.Draw(image)
-        font = ImageFont.truetype(font, font_size)
+        try:
+            font = ImageFont.truetype(font, font_size)
+        except:
+            font = ImageFont.load_default()
         draw.text(position, res + f" {probability:.2f}%", fill=text_color, font=font)
-
         return image
 
     @property
@@ -290,7 +292,8 @@ class Classify_Model(nn.Module):
             transforms.ToTensor(),
         ])
 
-        image = Image.open(img).convert('RGB')
+        # TODO: Image.open(img) if it's a path
+        image = img.convert('RGB')
         preprocessed_image = transform(image)
 
         preprocessed_image = preprocessed_image.to(self.device)
@@ -599,6 +602,8 @@ def get_key_from_value(d, value):
     Returns:
     - key: Key corresponding to the value, or None if not found.
     """
+    if isinstance(d, list):
+        return d[value]
     for key, val in d.items():
         if val == value:
             return key

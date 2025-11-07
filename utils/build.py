@@ -18,12 +18,12 @@ def check_cfg(cfg: str):
     opt = yaml.load(open(cfg, 'r', encoding='utf-8'), Loader=yaml.FullLoader)
     if len(opt['class_names']) != opt['num_classes']:
         raise ValueError("The number of classes does not match the number of class names")
-    if not os.path.exists(opt['train']):
-        raise ValueError("Training data path does not exist: {}".format(opt['train']))
-    if not os.path.exists(opt['val']):
-        raise ValueError("Validation data path does not exist: {}".format(opt['val']))
-    if not os.path.exists(opt['save_path']):
-        raise ValueError("Save path does not exist: {}".format(opt['save_path']))
+    # if not os.path.exists(opt['train']):
+    #     raise ValueError("Training data path does not exist: {}".format(opt['train']))
+    # if not os.path.exists(opt['val']):
+    #     raise ValueError("Validation data path does not exist: {}".format(opt['val']))
+    # if not os.path.exists(opt['save_path']):
+    #     raise ValueError("Save path does not exist: {}".format(opt['save_path']))
     if not isinstance(opt['model'], str) or opt['model'].lower() not in Model_list:
         raise ValueError("The model you specified is not available")
     if not isinstance(opt['num_classes'], int):

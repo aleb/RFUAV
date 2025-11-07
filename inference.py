@@ -1,13 +1,17 @@
+import sys
+
 # A sample script to test the model.
 from utils.benchmark import Classify_Model
 
 
 def main():
-    source = ''
-    test = Classify_Model(cfg='',
-                          weight_path='')
-    # test.inference(source=source, save_path='./res/')
-    test.benchmark(data_path=source)
+    cfg = sys.argv[1]
+    weight_path = sys.argv[2]
+    test = Classify_Model(cfg, weight_path)
+    source = sys.argv[3]
+    save_path = sys.argv[4]
+    test.inference(source, save_path)
+    #test.benchmark(data_path=source)
 
 
 if __name__ == '__main__':
