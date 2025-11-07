@@ -228,7 +228,7 @@ class Classify_Model(nn.Module):
         location = os.path.join(self.save_path, path_to_tmp(source, 'images_'))
         sample_duration_s = 0.1
         ratio = 1
-        generate_images(source, duration_time=sample_duration_s, location=location, ratio=ratio)
+        generate_images(source, duration_time=sample_duration_s, location=location, ratio=ratio, fs = 20e6)
         name = os.path.splitext(os.path.basename(source))[0]
 
         res = []
