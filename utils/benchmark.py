@@ -261,7 +261,7 @@ class Classify_Model(nn.Module):
                    res,
                    image,
                    position=(40, 45),
-                   font="AdwaitaMono-Bold.ttf",
+                   font="DejaVuSans-Bold.ttf",
                    font_size=40,
                    text_color=(0, 0, 0),
                    probability=0.0,
