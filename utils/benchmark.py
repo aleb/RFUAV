@@ -266,7 +266,8 @@ class Classify_Model(nn.Module):
             _ = self.add_result(res=predicted_class_name,
                                 probability=probabilities[0][predicted_class_index].item() * 100,
                                 image=Image.fromarray(image),
-                                time=time)
+                                time=time,
+                                duration=sample_duration_s)
 
 
             res.append(_)
