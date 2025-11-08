@@ -180,10 +180,25 @@ class Classify_Model(nn.Module):
 
         slice_point = int(fs * sample_duration_s)
 
-        # Load an array of float32
-        data = np.fromfile(source, dtype=np.float32)
-        # Pair the values in two, as complex numbers
-        data = data[::2] + data[1::2] * 1j
+        if source.endswith('.wav'):
+            from scipy.io import wavfile
+            from scipy.signal import hilbert
+
+            # The returned 'data' is composed of tuples of float32 values.
+            _sampling_rate, data = wavfile.read(source)
+            fs = _sampling_rate
+            file_type = data.dtype
+            # This also works:
+            # np.complex64 means both the real and imaginary parts are stored as 32-bit (single-precision) floating-point numbers.
+            # data1 = data.flatten().view(np.complex64)
+            I = data[:, 0]
+            Q = data[:, 1]
+            data = I + 1j * Q
+        else:
+            # Load an array of float32
+            data = np.fromfile(source, dtype=np.int32)
+            # Pair the values in two, as complex numbers
+            data = data[::2] + data[1::2] * 1j
 
         i = 0
         name = os.path.splitext(os.path.basename(source))[0]
@@ -244,7 +259,7 @@ class Classify_Model(nn.Module):
                 predicted_class_name = get_key_from_value(self.cfg['class_names'], predicted_class_index)
             else :
                 predicted_class_name = "no detection"
-            print("{}, probabilities: {} {} {}", predicted_class_name, probabilities[0], i, time)
+            print("{}, probabilities: {} {}", predicted_class_name, probabilities[0], time)
 
             image=(gpu_image.detach().cpu().numpy() *255).astype("uint8")
 
@@ -353,7 +368,11 @@ class Classify_Model(nn.Module):
         name = os.path.splitext(os.path.basename(source))[0]
 
         res = []
-        for (i, image) in enumerate(os.listdir(location)):
+
+        files = filter(os.path.isfile, os.listdir(location))
+        files = [os.path.join(location, f) for f in files] # add path to each file
+        files.sort(key=lambda x: os.path.getmtime(x))
+        for (i, image) in enumerate(files):
             time = i * sample_duration_s / (2 ** ratio)
             image = Image.open(os.path.join(location, image))
             temp = self.model(self.preprocess(image))
@@ -365,7 +384,7 @@ class Classify_Model(nn.Module):
                 predicted_class_name = get_key_from_value(self.cfg['class_names'], predicted_class_index)
             else :
                 predicted_class_name = "no detection"
-            print("{}, probabilities: {}", predicted_class_name, probabilities[0])
+            print("{}, probabilities: {} {} {}", predicted_class_name, probabilities[0], time, image)
 
             _ = self.add_result(res=predicted_class_name,
                                 probability=probabilities[0][predicted_class_index].item() * 100,

@@ -4,7 +4,7 @@
 CONFIGS_ROOT="./configs"
 WEIGHTS_ROOT="./RFUAV/weight" # Weights can be cloned or downloaded manually: git clone https://huggingface.co/datasets/kitofrank/RFUAV/
 DATASET_ROOT="./dataset"
-RES_ROOT="./res"
+RES_ROOT="./res_gpu"
 
 mkdir -p "$RES_ROOT"
 
@@ -50,7 +50,7 @@ for pair in "${CONFIGS_WEIGHTS[@]}"; do
         # Log file per config (or per file if desired)
         LOG_FILE="$OUT_DIR/$FILE_NAME.log"
 
-        python3 inference.py "$CONFIG" "$WEIGHT" "$f" "$FILE_DIR" &> "$LOG_FILE"
+        python3 opt_gpu_inference.py "$CONFIG" "$WEIGHT" "$f" "$FILE_DIR" &> "$LOG_FILE"
     done
 done
 

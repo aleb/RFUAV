@@ -6,7 +6,7 @@ DATASET_ROOT = "./dataset"  # folder with .iq files (dataset names from filename
 
 # Get all dataset names
 dataset_files = sorted(os.listdir(DATASET_ROOT))
-dataset_names = [os.path.splitext(f)[0] for f in dataset_files if f.endswith(".iq")]
+dataset_names = [os.path.splitext(f)[0] for f in dataset_files if f.endswith(".wav") or f.endswith(".iq")]
 
 # Prepare CSV header
 header = ["model"] + dataset_names

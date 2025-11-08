@@ -116,19 +116,18 @@ def generate_images(datapack: str = None,
     slice_point = int(fs * duration_time)
     if datapack.endswith('.wav'):
         from scipy.io import wavfile
+        from scipy.signal import hilbert
 
         # The returned 'data' is composed of tuples of float32 values.
         _sampling_rate, data = wavfile.read(datapack)
         fs = _sampling_rate
-        print(len(data), data)
-        assert(data.dtype == np.float32)
+        file_type = data.dtype
         # This also works:
         # np.complex64 means both the real and imaginary parts are stored as 32-bit (single-precision) floating-point numbers.
         # data1 = data.flatten().view(np.complex64)
         I = data[:, 0]
         Q = data[:, 1]
         data = I + 1j * Q
-        print(len(data), data)
     else:
         # Load an array of float32
         data = np.fromfile(datapack, dtype=file_type)
