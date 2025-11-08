@@ -119,6 +119,7 @@ def generate_images(datapack: str = None,
 
         # The returned 'data' is composed of tuples of float32 values.
         _sampling_rate, data = wavfile.read(datapack)
+        fs = _sampling_rate
         print(len(data), data)
         assert(data.dtype == np.float32)
         # This also works:
@@ -552,7 +553,7 @@ def main():
                   stft_point=2048,
                   duration_time=0.1,
                   )
-    show_half_only(datapack, 
+    show_half_only(datapack,
                    drone_name='test',
                    fs=100e6,
                    stft_point=2048,
