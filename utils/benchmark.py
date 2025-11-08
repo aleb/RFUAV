@@ -211,8 +211,8 @@ class Classify_Model(nn.Module):
         while (i + 1) * slice_point <= len(data):
             start = int(i * slice_point)
             end = int((i + 1) * slice_point)
-            i += 0.5
             time = i * sample_duration_s
+            i += 0.5
 
 
 
