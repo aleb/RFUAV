@@ -15,6 +15,8 @@ import numpy as np
 from torch.utils.data import DataLoader
 import hashlib
 import matplotlib.pyplot as plt
+from threading import Thread
+from queue import Queue
 
 try:
     from DetModels import YOLOV5S
@@ -44,6 +46,33 @@ from logger import colorful_logger
 # Supported image and raw data extensions
 image_ext = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']
 raw_data_ext = ['.iq', '.dat', '.wav']
+
+def visualize_frames(frame_queue):
+    """
+    Continuously display frames from the queue in a Matplotlib window.
+    """
+    plt.ion()  # interactive mode on
+    fig, ax = plt.subplots()
+    im = None
+
+    while True:
+        frame = frame_queue.get()
+        if frame is None:  # sentinel value to exit
+            break
+
+        if im is None:
+            im = ax.imshow(frame, aspect='auto')
+        else:
+            im.set_data(frame)
+
+        imageio.imwrite("output2.png", frame)
+
+        ax.axis('off')
+        plt.pause(0.01)  # allow GUI to update
+
+    plt.ioff()
+    plt.show()
+
 
 class Classify_Model(nn.Module):
     """
@@ -101,6 +130,10 @@ class Classify_Model(nn.Module):
         self.cache_path = "./cache"
 
         self.save = save
+
+        self.frame_queue = Queue(maxsize=2)  # small queue to avoid lag
+        vis_thread = Thread(target=visualize_frames, args=(self.frame_queue,))
+        vis_thread.start()
 
     def inference(self, source='../example/', save_path: str = '../result'):
         """
@@ -269,10 +302,124 @@ class Classify_Model(nn.Module):
                                 time=time,
                                 duration=sample_duration_s)
 
+            if not self.frame_queue.full():
+                self.frame_queue.put(_)
 
             res.append(_)
 
         imageio.mimsave(os.path.join(self.save_path, name + '.mp4'), res, fps=5)
+
+
+    def liveGpuInference(self, source='../example/'):
+
+        """
+        Transforming raw data into a video and performing inference on video.
+
+        Parameters:
+        - source (str): Path to the raw data.
+        """
+        # "iq" is a series of two values .. of float32
+        samples_count = os.path.getsize(source) / 2 / 4
+        duration = samples_count / SAMPLES_FREQUENCY
+        print("PROCESSING", source, "(", duration, "s)")
+
+        sample_duration_s = 0.1
+        fs = 20e6
+        stft_point = 1024
+
+        slice_point = int(fs * sample_duration_s)
+
+        if source.endswith('.wav'):
+            from scipy.io import wavfile
+            from scipy.signal import hilbert
+
+            # The returned 'data' is composed of tuples of float32 values.
+            _sampling_rate, data = wavfile.read(source)
+            fs = _sampling_rate
+            file_type = data.dtype
+            # This also works:
+            # np.complex64 means both the real and imaginary parts are stored as 32-bit (single-precision) floating-point numbers.
+            # data1 = data.flatten().view(np.complex64)
+            I = data[:, 0]
+            Q = data[:, 1]
+            data = I + 1j * Q
+        else:
+            # Load an array of float32
+            data = np.fromfile(source, dtype=np.int32)
+            # Pair the values in two, as complex numbers
+            data = data[::2] + data[1::2] * 1j
+
+        i = 0
+        name = os.path.splitext(os.path.basename(source))[0]
+
+        cmap = plt.cm.get_cmap("jet", 256)
+        cmap_np = cmap(range(256))[:, :3]  # ignore alpha
+        gpu_cmap = torch.tensor(cmap_np, dtype=torch.float32).cuda()  # (256,3)
+
+        res = []
+        while (i + 1) * slice_point <= len(data):
+            start = int(i * slice_point)
+            end = int((i + 1) * slice_point)
+            i += 0.5
+            time = i * sample_duration_s
+
+            x = torch.from_numpy(data[start:end]).float().cuda()  # move to GPU
+
+            n_fft = stft_point
+            hop_length = n_fft  # or choose overlap
+
+            # Create window
+            window = torch.hamming_window(n_fft, device='cuda')
+
+            # 1D STFT using torch.stft
+            Zxx = torch.stft(x, n_fft=n_fft, hop_length=hop_length, window=window, return_complex=True, center=False)  # shape: (freq_bins, time_frames), complex64
+
+            # Shift frequency axis (like np.fft.fftshift)
+            Zxx = torch.roll(Zxx, shifts=Zxx.shape[0] // 2, dims=0)
+
+            # Log magnitude (dB)
+            amplitudes = 10 * torch.log10(torch.abs(Zxx) + 1e-12).unsqueeze(0)  # shape: (1, freq_bins, time_frames)
+            transform = transforms.Compose([
+                transforms.Resize((1920, 1440)),
+            ])
+            amplitudes = transform(amplitudes)[0]  # shape (H, W)
+
+            #  Normalize to 0..1
+            aug_min = amplitudes.min()
+            aug_max = amplitudes.max()
+            norm_amplitudes = (amplitudes - aug_min) / (aug_max - aug_min + 1e-9)  # avoids division by zero
+
+            # Scale to 0..255 and convert to long indices
+            indices = (norm_amplitudes * 255).long().clamp(0, 255)
+
+            gpu_image = gpu_cmap[indices]   # shape (H, W, 3)
+
+            transform = transforms.Compose([
+                transforms.Resize((self.cfg['image_size'], self.cfg['image_size'])),
+            ])
+            preprocessed_image = transform(gpu_image.permute(2, 0, 1)).unsqueeze(0) # shape (1, 3, H, W)
+
+            probabilities = torch.softmax(self.model(preprocessed_image), dim=1)
+
+            predicted_class_index = torch.argmax(probabilities, dim=1).item()
+            if probabilities[0][predicted_class_index] > 0.7 :
+                predicted_class_name = get_key_from_value(self.cfg['class_names'], predicted_class_index)
+            else :
+                predicted_class_name = "no detection"
+            print("{}, probabilities: {} {}", predicted_class_name, probabilities[0], time)
+
+            image=(gpu_image.detach().cpu().numpy() *255).astype("uint8")
+
+            frame_image = self.add_result(res=predicted_class_name,
+                                probability=probabilities[0][predicted_class_index].item() * 100,
+                                image=Image.fromarray(image),
+                                time=time)
+
+            imageio.imwrite("output.png", frame_image)
+
+            if not self.frame_queue.full():
+                self.frame_queue.put(frame_image)
+
 
     def forward(self, img):
 
