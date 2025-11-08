@@ -43,7 +43,7 @@ from logger import colorful_logger
 
 # Supported image and raw data extensions
 image_ext = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']
-raw_data_ext = ['.iq', '.dat']
+raw_data_ext = ['.iq', '.dat', '.wav']
 
 class Classify_Model(nn.Module):
     """
