@@ -383,13 +383,14 @@ class Classify_Model(nn.Module):
             if probabilities[0][predicted_class_index] > 0.7 :
                 predicted_class_name = get_key_from_value(self.cfg['class_names'], predicted_class_index)
             else :
-                predicted_class_name = "no detection"
-            print("{}, probabilities: {} {} {}", predicted_class_name, probabilities[0], time, image)
+                predicted_class_name = None
+            print("{}, probabilities: {} {} {}", predicted_class_name or "no detection", probabilities[0], time, image)
 
             _ = self.add_result(res=predicted_class_name,
                                 probability=probabilities[0][predicted_class_index].item() * 100,
                                 image=image,
-                                time=time)
+                                time=time,
+                                duration=sample_duration_s)
             res.append(_)
 
         imageio.mimsave(os.path.join(self.save_path, name + '.mp4'), res, fps=5)
@@ -402,7 +403,8 @@ class Classify_Model(nn.Module):
                    font_size=40,
                    text_color=(0, 0, 0),
                    probability=0.0,
-                   time=None
+                   time=None,
+                   duration=None,
                    ):
         """
         Adds the inference result to the image.
@@ -424,8 +426,14 @@ class Classify_Model(nn.Module):
             font = ImageFont.truetype(font, font_size)
         except:
             font = ImageFont.load_default()
-        draw.text(position,                     f"model: {res} ({probability:.2f})", fill=text_color, font=font)
-        draw.text((position[0], position[1]*2), f"time:  {time:.2f}s", fill=text_color, font=font)
+        minutes = int(time / 60)
+        seconds_with_fraction = time % 60
+        draw.text(position, f"{minutes:02d}:{seconds_with_fraction:05.2f}, {duration:.2f}s", fill=text_color, font=font)
+        position = (position[0], position[1]*2)
+        if res:
+            draw.text(position, f"{res}, p={probability:.2f}", fill=text_color, font=font)
+        else:
+            draw.text(position, f"―", fill=text_color, font=font)
         return image
 
     @property
