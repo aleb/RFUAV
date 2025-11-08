@@ -132,8 +132,13 @@ class Classify_Model(nn.Module):
         self.save = save
 
         self.frame_queue = Queue(maxsize=2)  # small queue to avoid lag
+
+    def start_visualization():
         vis_thread = Thread(target=visualize_frames, args=(self.frame_queue,))
         vis_thread.start()
+
+    def terminate_visualization():
+        vis_thread.terminate()
 
     def inference(self, source='../example/', save_path: str = '../result'):
         """
@@ -413,7 +418,8 @@ class Classify_Model(nn.Module):
             frame_image = self.add_result(res=predicted_class_name,
                                 probability=probabilities[0][predicted_class_index].item() * 100,
                                 image=Image.fromarray(image),
-                                time=time)
+                                time=time,
+                                duration=sample_duration_s)
 
             imageio.imwrite("output.png", frame_image)
 
@@ -517,10 +523,7 @@ class Classify_Model(nn.Module):
 
         res = []
 
-        files = filter(os.path.isfile, os.listdir(location))
-        files = [os.path.join(location, f) for f in files] # add path to each file
-        files.sort(key=lambda x: os.path.getmtime(x))
-        for (i, image) in enumerate(files):
+        for (i, image) in enumerate(sorted(os.listdir(location))):
             time = i * sample_duration_s / (2 ** ratio)
             image = Image.open(os.path.join(location, image))
             temp = self.model(self.preprocess(image))

@@ -95,7 +95,7 @@ def generate_images(datapack: str = None,
                     duration_time: float = 0.1,
                     ratio: int = 1,  # 控制产生图片时间间隔的倍率，默认为1生成视频的倍率
                     location: str = 'buffer',
-                    file_type=np.float32
+                    file_type=np.int16
                     ):
     """
     Generates images from the given data using Short-Time Fourier Transform (STFT).
@@ -141,7 +141,7 @@ def generate_images(datapack: str = None,
             return
         os.mkdir(location)
 
-    i = 0
+    i = 0.
     while (i + 1) * slice_point <= len(data):
         start = int(i * slice_point)
         end = int((i + 1) * slice_point)
