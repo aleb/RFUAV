@@ -141,6 +141,122 @@ class Classify_Model(nn.Module):
         elif is_valid_file(source, raw_data_ext):
             self.RawdataProcess(source)
 
+    def optimizedGpuInference(self, source='../example/', save_path: str = '../result'):
+        """
+        Performs inference on the given source data.
+
+        Parameters:
+        - source (str): Path to the source data.
+        - save_path (str): Path to save the results.
+        """
+        torch.no_grad()
+        if self.save:
+            if not os.path.exists(save_path):
+                os.mkdir(save_path)
+            self.save_path = save_path
+            self.logger.log_with_color(f"Saving results to: {save_path}")
+
+        if not os.path.exists(source):
+            self.logger.log_with_color(f"Source {source} dose not exit")
+
+        if not is_valid_file(source, raw_data_ext):
+            self.logger.log_with_color(f"Source {source} is not valid raw data")
+
+        """
+        Transforming raw data into a video and performing inference on video.
+
+        Parameters:
+        - source (str): Path to the raw data.
+        """
+        # "iq" is a series of two values .. of float32
+        samples_count = os.path.getsize(source) / 2 / 4
+        duration = samples_count / SAMPLES_FREQUENCY
+        print("PROCESSING", source, "(", duration, "s)")
+
+        sample_duration_s = 0.1
+        fs = 20e6
+        stft_point = 1024
+
+        slice_point = int(fs * sample_duration_s)
+
+        # Load an array of float32
+        data = np.fromfile(source, dtype=np.float32)
+        # Pair the values in two, as complex numbers
+        data = data[::2] + data[1::2] * 1j
+
+        i = 0
+        name = os.path.splitext(os.path.basename(source))[0]
+
+        cmap = plt.cm.get_cmap("jet", 256)
+        cmap_np = cmap(range(256))[:, :3]  # ignore alpha
+        gpu_cmap = torch.tensor(cmap_np, dtype=torch.float32).cuda()  # (256,3)
+
+        res = []
+        while (i + 1) * slice_point <= len(data):
+            start = int(i * slice_point)
+            end = int((i + 1) * slice_point)
+            i += 0.5
+            time = i * sample_duration_s
+
+
+
+            x = torch.from_numpy(data[start:end]).float().cuda()  # move to GPU
+
+            n_fft = stft_point
+            hop_length = n_fft  # or choose overlap
+
+            # Create window
+            window = torch.hamming_window(n_fft, device='cuda')
+
+            # 1D STFT using torch.stft
+            Zxx = torch.stft(x, n_fft=n_fft, hop_length=hop_length, window=window, return_complex=True, center=False)  # shape: (freq_bins, time_frames), complex64
+
+            # Shift frequency axis (like np.fft.fftshift)
+            Zxx = torch.roll(Zxx, shifts=Zxx.shape[0] // 2, dims=0)
+
+            # Log magnitude (dB)
+            amplitudes = 10 * torch.log10(torch.abs(Zxx) + 1e-12).unsqueeze(0)  # shape: (1, freq_bins, time_frames)
+            transform = transforms.Compose([
+                transforms.Resize((1920, 1440)),
+            ])
+            amplitudes = transform(amplitudes)[0]  # shape (H, W)
+
+            #  Normalize to 0..1
+            aug_min = amplitudes.min()
+            aug_max = amplitudes.max()
+            norm_amplitudes = (amplitudes - aug_min) / (aug_max - aug_min + 1e-9)  # avoids division by zero
+
+            # Scale to 0..255 and convert to long indices
+            indices = (norm_amplitudes * 255).long().clamp(0, 255)
+
+            gpu_image = gpu_cmap[indices]   # shape (H, W, 3)
+
+            transform = transforms.Compose([
+                transforms.Resize((self.cfg['image_size'], self.cfg['image_size'])),
+            ])
+            preprocessed_image = transform(gpu_image.permute(2, 0, 1)).unsqueeze(0) # shape (1, 3, H, W)
+
+            probabilities = torch.softmax(self.model(preprocessed_image), dim=1)
+
+            predicted_class_index = torch.argmax(probabilities, dim=1).item()
+            if probabilities[0][predicted_class_index] > 0.7 :
+                predicted_class_name = get_key_from_value(self.cfg['class_names'], predicted_class_index)
+            else :
+                predicted_class_name = "no detection"
+            print("{}, probabilities: {} {} {}", predicted_class_name, probabilities[0], i, time)
+
+            image=(gpu_image.detach().cpu().numpy() *255).astype("uint8")
+
+            _ = self.add_result(res=predicted_class_name,
+                                probability=probabilities[0][predicted_class_index].item() * 100,
+                                image=Image.fromarray(image),
+                                time=time)
+
+
+            res.append(_)
+
+        imageio.mimsave(os.path.join(self.save_path, name + '.mp4'), res, fps=5)
+
     def forward(self, img):
 
         """
