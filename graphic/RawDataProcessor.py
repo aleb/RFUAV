@@ -116,7 +116,6 @@ def generate_images(datapack: str = None,
     slice_point = int(fs * duration_time)
     if datapack.endswith('.wav'):
         from scipy.io import wavfile
-        from scipy.signal import hilbert
 
         # The returned 'data' is composed of tuples of float32 values.
         _sampling_rate, data = wavfile.read(datapack)

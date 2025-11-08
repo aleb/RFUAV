@@ -25,3 +25,4 @@ albumentations >= 1.4.20
 
 imageio[ffmpeg]
 requests
+soundfile
