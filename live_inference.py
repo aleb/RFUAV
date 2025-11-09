@@ -31,7 +31,7 @@ def main():
             # Get all valid files that are younger than 1 second
             files_to_process = [
                 f for f in source.iterdir()
-                if f.is_file() and f.suffix.lower() in VALID_EXTENSIONS
+                if f.is_file() and f.suffix.lower() in VALID_EXTENSIONS and (time.time() - f.stat().st_mtime) <= 1
             ]
 
             if files_to_process:
@@ -44,7 +44,7 @@ def main():
                         print(f"Error processing {file_path}: {e}")
                     finally:
                         try:
-#                            file_path.unlink()
+                            file_path.unlink()
                             print(f"Deleted {file_path}")
                         except Exception as e:
                             print(f"Failed to delete {file_path}: {e}")
