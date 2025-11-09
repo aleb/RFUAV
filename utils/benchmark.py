@@ -18,6 +18,8 @@ import matplotlib.pyplot as plt
 from threading import Thread, Event
 from queue import Queue
 from scipy.io import wavfile
+from scipy.signal import stft, windows
+from io import BytesIO
 
 try:
     from DetModels import YOLOV5S
@@ -47,6 +49,36 @@ from logger import colorful_logger
 # Supported image and raw data extensions
 image_ext = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']
 raw_data_ext = ['.iq', '.dat', '.wav']
+
+def STFT(data,
+         onside: bool = True,
+         stft_point: int = 1024,
+         fs: int = 100e6,
+         duration_time: float = 0.1,
+         ):
+
+    """
+    Performs Short-Time Fourier Transform (STFT) on the given data.
+
+    Parameters:
+    - data (array-like): Input data.
+    - onside (bool): Whether to return one-sided or two-sided STFT, default is True.
+    - stft_point (int): Number of points for STFT, default is 1024.
+    - fs (int): Sampling frequency, default is 100 MHz.
+    - duration_time (float): Duration time for each segment, default is 0.1 seconds.
+
+    Returns:
+    - f (array): Frequencies.
+    - t (array): Times.
+    - Zxx (array): STFT result.
+    """
+
+    slice_point = int(fs * duration_time)
+
+    f, t, Zxx = stft(data[0: slice_point], fs,
+         return_onesided=onside, window=windows.hamming(stft_point), nperseg=stft_point)
+
+    return f, t, Zxx
 
 def visualize_frames(frame_queue, stop_event):
     """
@@ -357,59 +389,42 @@ class Classify_Model(nn.Module):
         while (i + 1) * slice_point <= len(data):
             start = int(i * slice_point)
             end = int((i + 1) * slice_point)
-            i += 0.5
-            time = i * sample_duration_s
+            f, t, Zxx = STFT(data[start:end],
+                         stft_point=stft_point, fs=fs, duration_time=0.1, onside=False)
+            f = np.fft.fftshift(f)
+            Zxx = np.fft.fftshift(Zxx, axes=0)
+            aug = 10 * np.log10(np.abs(Zxx))
+            extent = [t.min(), t.max(), f.min(), f.max()]
 
-            x = torch.from_numpy(data[start:end]).float().cuda()  # move to GPU
+            plt.figure()
+            plt.imshow(aug, extent=extent, aspect='auto', origin='lower', cmap='jet')
+            plt.axis('off')
+            plt.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace=None, hspace=None)
 
-            n_fft = stft_point
-            hop_length = n_fft  # or choose overlap
+            buffer = BytesIO()
+            plt.savefig(buffer, format='png', dpi=300)
+            plt.close()
 
-            # Create window
-            window = torch.hamming_window(n_fft, device='cuda')
+            buffer.seek(0)
+            image = Image.open(buffer)
 
-            # 1D STFT using torch.stft
-            Zxx = torch.stft(x, n_fft=n_fft, hop_length=hop_length, window=window, return_complex=True, center=False)  # shape: (freq_bins, time_frames), complex64
+            time = i * sample_duration_s / 2
+            temp = self.model(self.preprocess(image))
 
-            # Shift frequency axis (like np.fft.fftshift)
-            Zxx = torch.roll(Zxx, shifts=Zxx.shape[0] // 2, dims=0)
+            i += 1
 
-            # Log magnitude (dB)
-            amplitudes = 10 * torch.log10(torch.abs(Zxx) + 1e-12).unsqueeze(0)  # shape: (1, freq_bins, time_frames)
-            transform = transforms.Compose([
-                transforms.Resize((1440 ,1920)),
-            ])
-            amplitudes = transform(amplitudes)[0]  # shape (H, W)
-
-            #  Normalize to 0..1
-            aug_min = amplitudes.min()
-            aug_max = amplitudes.max()
-            norm_amplitudes = (amplitudes - aug_min) / (aug_max - aug_min + 1e-9)  # avoids division by zero
-
-            # Scale to 0..255 and convert to long indices
-            indices = (norm_amplitudes * 255).long().clamp(0, 255)
-
-            gpu_image = gpu_cmap[indices]   # shape (H, W, 3)
-
-            transform = transforms.Compose([
-                transforms.Resize((self.cfg['image_size'], self.cfg['image_size'])),
-            ])
-            preprocessed_image = transform(gpu_image.permute(2, 0, 1)).unsqueeze(0) # shape (1, 3, H, W)
-
-            probabilities = torch.softmax(self.model(preprocessed_image), dim=1)
+            probabilities = torch.softmax(temp, dim=1)
 
             predicted_class_index = torch.argmax(probabilities, dim=1).item()
             if probabilities[0][predicted_class_index] > 0.7 :
                 predicted_class_name = get_key_from_value(self.cfg['class_names'], predicted_class_index)
             else :
                 predicted_class_name = "no detection"
-            print(f"{predicted_class_name}, probabilities: {probabilities[0]}")
-
-            image=(gpu_image.detach().cpu().numpy() *255).astype("uint8")
+            print("{}, probabilities: {} {} {}", predicted_class_name or "no detection", probabilities[0], time, image)
 
             frame = self.add_result(res=predicted_class_name,
                                 probability=probabilities[0][predicted_class_index].item() * 100,
-                                image=Image.fromarray(image),
+                                image=image,
                                 time=time,
                                 duration=sample_duration_s)
 
