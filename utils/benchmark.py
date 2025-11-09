@@ -227,8 +227,8 @@ class Classify_Model(nn.Module):
             Q = data[:, 1]
             data = I + 1j * Q
         else:
-            # Load an array of int32
-            data = np.fromfile(source, dtype=np.int32)
+            # Load an array of int16
+            data = np.fromfile(source, dtype=np.int16)
             # Pair the values in two, as complex numbers
             data = data[::2] + data[1::2] * 1j
 
@@ -339,8 +339,8 @@ class Classify_Model(nn.Module):
             Q = data[:, 1]
             data = I + 1j * Q
         else:
-            # Load an array of int32
-            data = np.fromfile(source, dtype=np.int32)
+            # Load an array of int16
+            data = np.fromfile(source, dtype=np.int16)
             # Pair the values in two, as complex numbers
             data = data[::2] + data[1::2] * 1j
 
