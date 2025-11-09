@@ -541,7 +541,7 @@ class Classify_Model(nn.Module):
                    image,
                    position=(40, 45),
                    font="DejaVuSans-Bold.ttf",
-                   font_size=60,
+                   font_size=50,
                    text_color=(0, 0, 0),
                    probability=0.0,
                    time=None,
