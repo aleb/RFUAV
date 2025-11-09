@@ -267,7 +267,7 @@ class Classify_Model(nn.Module):
             # Log magnitude (dB)
             amplitudes = 10 * torch.log10(torch.abs(Zxx) + 1e-12).unsqueeze(0)  # shape: (1, freq_bins, time_frames)
             transform = transforms.Compose([
-                transforms.Resize((1920, 1440)),
+                transforms.Resize((1440, 1920)),
             ])
             amplitudes = transform(amplitudes)[0]  # shape (H, W)
 
@@ -377,7 +377,7 @@ class Classify_Model(nn.Module):
             # Log magnitude (dB)
             amplitudes = 10 * torch.log10(torch.abs(Zxx) + 1e-12).unsqueeze(0)  # shape: (1, freq_bins, time_frames)
             transform = transforms.Compose([
-                transforms.Resize((1920, 1440)),
+                transforms.Resize((1440 ,1920)),
             ])
             amplitudes = transform(amplitudes)[0]  # shape (H, W)
 
