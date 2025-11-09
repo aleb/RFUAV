@@ -524,7 +524,7 @@ class Classify_Model(nn.Module):
             if probabilities[0][predicted_class_index] > 0.7 :
                 predicted_class_name = get_key_from_value(self.cfg['class_names'], predicted_class_index)
             else :
-                predicted_class_name = None
+                predicted_class_name = "no detection"
             print("{}, probabilities: {} {} {}", predicted_class_name or "no detection", probabilities[0], time, image)
 
             _ = self.add_result(res=predicted_class_name,
@@ -541,7 +541,7 @@ class Classify_Model(nn.Module):
                    image,
                    position=(40, 45),
                    font="DejaVuSans-Bold.ttf",
-                   font_size=40,
+                   font_size=60,
                    text_color=(0, 0, 0),
                    probability=0.0,
                    time=None,
@@ -569,10 +569,10 @@ class Classify_Model(nn.Module):
             font = ImageFont.load_default()
         minutes = int(time / 60)
         seconds_with_fraction = time % 60
-        draw.text(position, f"{minutes:02d}:{seconds_with_fraction:05.2f}, {duration:.2f}s", fill=text_color, font=font)
+        draw.text(position, f"{minutes:02d}:{seconds_with_fraction:05.2f}", fill=text_color, font=font)
         position = (position[0], position[1]*2)
         if res:
-            draw.text(position, f"{res}, p={probability:.2f}", fill=text_color, font=font)
+            draw.text(position, f"{res}", fill=text_color, font=font)
         else:
             draw.text(position, f"―", fill=text_color, font=font)
         return image
