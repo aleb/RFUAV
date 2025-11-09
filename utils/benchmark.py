@@ -15,8 +15,9 @@ import numpy as np
 from torch.utils.data import DataLoader
 import hashlib
 import matplotlib.pyplot as plt
-from threading import Thread
+from threading import Thread, Event
 from queue import Queue
+from scipy.io import wavfile
 
 try:
     from DetModels import YOLOV5S
@@ -47,7 +48,7 @@ from logger import colorful_logger
 image_ext = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']
 raw_data_ext = ['.iq', '.dat', '.wav']
 
-def visualize_frames(frame_queue):
+def visualize_frames(frame_queue, stop_event):
     """
     Continuously display frames from the queue in a Matplotlib window.
     """
@@ -55,7 +56,7 @@ def visualize_frames(frame_queue):
     fig, ax = plt.subplots()
     im = None
 
-    while True:
+    while not stop_event.is_set():
         frame = frame_queue.get()
         if frame is None:  # sentinel value to exit
             break
@@ -65,14 +66,10 @@ def visualize_frames(frame_queue):
         else:
             im.set_data(frame)
 
-        imageio.imwrite("output2.png", frame)
-
         ax.axis('off')
         plt.pause(0.01)  # allow GUI to update
-
     plt.ioff()
-    plt.show()
-
+    plt.close(fig)
 
 class Classify_Model(nn.Module):
     """
@@ -133,12 +130,15 @@ class Classify_Model(nn.Module):
 
         self.frame_queue = Queue(maxsize=2)  # small queue to avoid lag
 
-    def start_visualization():
-        vis_thread = Thread(target=visualize_frames, args=(self.frame_queue,))
-        vis_thread.start()
+    def start_visualization(self):
+        self.stop_event = Event()
+        self.vis_thread = Thread(target=visualize_frames, args=(self.frame_queue,self.stop_event))
+        self.vis_thread.start()
 
-    def terminate_visualization():
-        vis_thread.terminate()
+    def terminate_visualization(self):
+        self.frame_queue.put(None)
+        self.vis_thread.join()
+        self.frame_queue = None
 
     def inference(self, source='../example/', save_path: str = '../result'):
         """
@@ -216,16 +216,10 @@ class Classify_Model(nn.Module):
         fs = 20e6
         stft_point = 1024
 
-        slice_point = int(fs * sample_duration_s)
-
         if source.endswith('.wav'):
-            from scipy.io import wavfile
-            from scipy.signal import hilbert
-
             # The returned 'data' is composed of tuples of float32 values.
             _sampling_rate, data = wavfile.read(source)
             fs = _sampling_rate
-            file_type = data.dtype
             # This also works:
             # np.complex64 means both the real and imaginary parts are stored as 32-bit (single-precision) floating-point numbers.
             # data1 = data.flatten().view(np.complex64)
@@ -233,10 +227,12 @@ class Classify_Model(nn.Module):
             Q = data[:, 1]
             data = I + 1j * Q
         else:
-            # Load an array of float32
+            # Load an array of int32
             data = np.fromfile(source, dtype=np.int32)
             # Pair the values in two, as complex numbers
             data = data[::2] + data[1::2] * 1j
+
+        slice_point = int(fs * sample_duration_s)
 
         i = 0
         name = os.path.splitext(os.path.basename(source))[0]
@@ -297,20 +293,20 @@ class Classify_Model(nn.Module):
                 predicted_class_name = get_key_from_value(self.cfg['class_names'], predicted_class_index)
             else :
                 predicted_class_name = "no detection"
-            print("{}, probabilities: {} {}", predicted_class_name, probabilities[0], time)
+            print(f"{predicted_class_name}, probabilities: {probabilities[0]} {time}")
 
             image=(gpu_image.detach().cpu().numpy() *255).astype("uint8")
 
-            _ = self.add_result(res=predicted_class_name,
+            frame = self.add_result(res=predicted_class_name,
                                 probability=probabilities[0][predicted_class_index].item() * 100,
                                 image=Image.fromarray(image),
                                 time=time,
                                 duration=sample_duration_s)
 
             if not self.frame_queue.full():
-                self.frame_queue.put(_)
+                self.frame_queue.put(frame)
 
-            res.append(_)
+            res.append(frame)
 
         imageio.mimsave(os.path.join(self.save_path, name + '.mp4'), res, fps=5)
 
@@ -332,16 +328,10 @@ class Classify_Model(nn.Module):
         fs = 20e6
         stft_point = 1024
 
-        slice_point = int(fs * sample_duration_s)
-
         if source.endswith('.wav'):
-            from scipy.io import wavfile
-            from scipy.signal import hilbert
-
             # The returned 'data' is composed of tuples of float32 values.
             _sampling_rate, data = wavfile.read(source)
             fs = _sampling_rate
-            file_type = data.dtype
             # This also works:
             # np.complex64 means both the real and imaginary parts are stored as 32-bit (single-precision) floating-point numbers.
             # data1 = data.flatten().view(np.complex64)
@@ -349,10 +339,12 @@ class Classify_Model(nn.Module):
             Q = data[:, 1]
             data = I + 1j * Q
         else:
-            # Load an array of float32
+            # Load an array of int32
             data = np.fromfile(source, dtype=np.int32)
             # Pair the values in two, as complex numbers
             data = data[::2] + data[1::2] * 1j
+
+        slice_point = int(fs * sample_duration_s)
 
         i = 0
         name = os.path.splitext(os.path.basename(source))[0]
@@ -411,20 +403,18 @@ class Classify_Model(nn.Module):
                 predicted_class_name = get_key_from_value(self.cfg['class_names'], predicted_class_index)
             else :
                 predicted_class_name = "no detection"
-            print("{}, probabilities: {} {}", predicted_class_name, probabilities[0], time)
+            print(f"{predicted_class_name}, probabilities: {probabilities[0]}")
 
             image=(gpu_image.detach().cpu().numpy() *255).astype("uint8")
 
-            frame_image = self.add_result(res=predicted_class_name,
+            frame = self.add_result(res=predicted_class_name,
                                 probability=probabilities[0][predicted_class_index].item() * 100,
                                 image=Image.fromarray(image),
                                 time=time,
                                 duration=sample_duration_s)
 
-            imageio.imwrite("output.png", frame_image)
-
             if not self.frame_queue.full():
-                self.frame_queue.put(frame_image)
+                self.frame_queue.put(frame)
 
 
     def forward(self, img):

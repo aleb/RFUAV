@@ -8,6 +8,7 @@ import imageio
 from PIL import Image
 from typing import Union
 from scipy.fft import fft
+from scipy.io import wavfile
 
 SAMPLES_FREQUENCY = 20e6
 
@@ -95,7 +96,6 @@ def generate_images(datapack: str = None,
                     duration_time: float = 0.1,
                     ratio: int = 1,  # 控制产生图片时间间隔的倍率，默认为1生成视频的倍率
                     location: str = 'buffer',
-                    file_type=np.int16
                     ):
     """
     Generates images from the given data using Short-Time Fourier Transform (STFT).
@@ -115,13 +115,9 @@ def generate_images(datapack: str = None,
     """
     slice_point = int(fs * duration_time)
     if datapack.endswith('.wav'):
-        from scipy.io import wavfile
-        from scipy.signal import hilbert
-
         # The returned 'data' is composed of tuples of float32 values.
         _sampling_rate, data = wavfile.read(datapack)
         fs = _sampling_rate
-        file_type = data.dtype
         # This also works:
         # np.complex64 means both the real and imaginary parts are stored as 32-bit (single-precision) floating-point numbers.
         # data1 = data.flatten().view(np.complex64)
@@ -130,7 +126,7 @@ def generate_images(datapack: str = None,
         data = I + 1j * Q
     else:
         # Load an array of float32
-        data = np.fromfile(datapack, dtype=file_type)
+        data = np.fromfile(datapack, dtype=np.int16)
         # Pair the values in two, as complex numbers
         data = data[::2] + data[1::2] * 1j
 

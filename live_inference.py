@@ -19,37 +19,42 @@ def main():
     source = Path(sys.argv[3])
 
     test = Classify_Model(cfg, weight_path)
+    test.start_visualization()
 
     if not source.is_dir():
         raise ValueError(f"{source} is not a valid directory")
 
     print(f"Monitoring {source} for new files...")
 
-    while True:
-        # Get all valid files that are younger than 1 second
-        files_to_process = [
-            f for f in source.iterdir()
-            if f.is_file() and f.suffix.lower() in VALID_EXTENSIONS and (time.time() - f.stat().st_mtime) <= 1
-        ]
+    try:
+        while True:
+            # Get all valid files that are younger than 1 second
+            files_to_process = [
+                f for f in source.iterdir()
+                if f.is_file() and f.suffix.lower() in VALID_EXTENSIONS
+            ]
 
-        if files_to_process:
-            # Process each file immediately
-            for file_path in files_to_process:
-                print(f"Processing {file_path}")
-                try:
-                    test.liveGpuInference(str(file_path))
-                except Exception as e:
-                    print(f"Error processing {file_path}: {e}")
-                finally:
+            if files_to_process:
+                # Process each file immediately
+                for file_path in files_to_process:
+                    print(f"Processing {file_path}")
                     try:
-                        file_path.unlink()
-                        print(f"Deleted {file_path}")
+                        test.liveGpuInference(str(file_path))
                     except Exception as e:
-                        print(f"Failed to delete {file_path}: {e}")
-        else:
-            # Sleep only if no new files available
-            time.sleep(0.1)
-            print(f"IDLE")
+                        print(f"Error processing {file_path}: {e}")
+                    finally:
+                        try:
+#                            file_path.unlink()
+                            print(f"Deleted {file_path}")
+                        except Exception as e:
+                            print(f"Failed to delete {file_path}: {e}")
+            else:
+                # Sleep only if no new files available
+                time.sleep(0.1)
+                print(f"IDLE")
+
+    except KeyboardInterrupt:
+        test.terminate_visualization()
 
 if __name__ == "__main__":
     main()
